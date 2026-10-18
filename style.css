@@ -1,4 +1,4 @@
-﻿/*
+/*
  * YouTube Split Scroll â€“ Core Styles
  * ===================================
  *
@@ -69,7 +69,7 @@
   /*  Subtle scrollbars (Firefox-native scrollbar-* properties)  */
   /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-  /* Chrome/WebKit scrollbar styling */
+  /* Chrome/WebKit scrollbar styling (when hideScrollbars is disabled) */
   html.yt-split-scroll ytd-watch-flexy:not([theater]):not([fullscreen]) #primary::-webkit-scrollbar,
   html.yt-split-scroll ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary::-webkit-scrollbar {
     width: 6px;
@@ -89,6 +89,24 @@
   html.yt-split-scroll ytd-watch-flexy:not([theater]):not([fullscreen]) #primary::-webkit-scrollbar-thumb:hover,
   html.yt-split-scroll ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary::-webkit-scrollbar-thumb:hover {
     background: rgba(128, 128, 128, 0.7);
+  }
+
+  /* Hidden scrollbars (active when hideScrollbars is enabled) */
+  html.yt-split-scroll.yt-split-scroll-hide-scrollbars
+    ytd-watch-flexy:not([theater]):not([fullscreen]) #primary,
+  html.yt-split-scroll.yt-split-scroll-hide-scrollbars
+    ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html.yt-split-scroll.yt-split-scroll-hide-scrollbars
+    ytd-watch-flexy:not([theater]):not([fullscreen]) #primary::-webkit-scrollbar,
+  html.yt-split-scroll.yt-split-scroll-hide-scrollbars
+    ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 }
 

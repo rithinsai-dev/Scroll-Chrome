@@ -1,7 +1,7 @@
-﻿{
+{
   "manifest_version": 3,
   "name": "YouTube Split Scroll",
-  "version": "0.1",
+  "version": "0.2",
   "description": "Makes YouTube's left column (video, title, comments) and right column (suggestions) scroll independently, so browsing suggestions never pushes the video off screen.",
 
   "permissions": ["storage"],

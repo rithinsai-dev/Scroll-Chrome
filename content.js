@@ -1,4 +1,4 @@
-﻿/**
+/**
  * YouTube Split Scroll â€“ Content Script
  * ======================================
  *
@@ -26,6 +26,7 @@
   const DEFAULTS = {
     enabled: true,
     stickyPlayer: false,
+    hideScrollbars: true,
   };
 
   /* â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -40,6 +41,10 @@
     root.classList.toggle(
       "yt-split-scroll-sticky-player",
       currentSettings.enabled && currentSettings.stickyPlayer
+    );
+    root.classList.toggle(
+      "yt-split-scroll-hide-scrollbars",
+      currentSettings.enabled && currentSettings.hideScrollbars
     );
   }
 
@@ -188,6 +193,10 @@
     if (changes.stickyPlayer !== undefined) {
       currentSettings.stickyPlayer =
         changes.stickyPlayer.newValue ?? DEFAULTS.stickyPlayer;
+    }
+    if (changes.hideScrollbars !== undefined) {
+      currentSettings.hideScrollbars =
+        changes.hideScrollbars.newValue ?? DEFAULTS.hideScrollbars;
     }
 
     init();
