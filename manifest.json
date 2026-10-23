@@ -1,11 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Split Scroll",
-  "version": "0.2",
-  "description": "Makes YouTube's left column (video, title, comments) and right column (suggestions) scroll independently, so browsing suggestions never pushes the video off screen.",
+  "name": "TubeDeck",
+  "version": "0.4.0",
+  "description": "Independent dual-column scrolling, sticky player, Shorts cleaner, and seamless Auto Picture-in-Picture for YouTube.",
 
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
   "host_permissions": ["https://www.youtube.com/*"],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "commands": {
+    "toggle-pip": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+8",
+        "windows": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
+      },
+      "description": "Toggle Picture-in-Picture (Global)",
+      "global": true
+    }
+  },
 
   "content_scripts": [
     {
@@ -13,6 +29,12 @@
       "css": ["style.css"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "world": "MAIN",
+      "js": ["main_world.js"],
+      "run_at": "document_start"
     }
   ],
 

@@ -1,40 +1,88 @@
 /**
- * YouTube Split Scroll â€“ Content Script
- * ======================================
- *
- * Responsibilities:
- *  1. Toggle the `yt-split-scroll` class on <html> based on user preference.
- *  2. Re-apply settings after YouTube's SPA navigation (yt-navigate-finish).
- *  3. Fix infinite scroll in the #secondary column: YouTube's built-in
- *     IntersectionObserver watches the viewport, but our CSS makes #secondary
- *     a separate scroll container.  We observe the continuation-item inside
- *     #secondary and scroll it into the viewport to trigger loading.
- *  4. Listen for live setting changes from the popup via storage.onChanged.
- *
- * â”€â”€â”€ YOUTUBE SELECTORS (update if YouTube changes its DOM) â”€â”€â”€â”€â”€â”€â”€â”€
- *  #secondary                       â€“ right sidebar column
- *  ytd-continuation-item-renderer   â€“ "load more" sentinel in the sidebar
- *  ytd-watch-flexy                  â€“ main watch page component
- *  #player-container-outer          â€“ video player outer wrapper
- * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * TubeDeck – Content Script
+ * =========================
+ * Lightweight & optimized for low-spec systems:
+ *  - Native browser autoPictureInPicture & MediaSession integration (no gesture drop errors)
+ *  - Global Picture-in-Picture dismissals via background service worker and Ctrl+Shift+8
+ *  - Dual-layer in-page shortcuts (Ctrl+Shift+8, Alt+Shift+X, Alt+X)
+ *  - Debounced auto-exit on tab/window restoration ensuring zero DComp visual drops
+ *  - Throttled sentinel & rAF debounced mutation observers (near-zero CPU footprint)
+ *  - Safe runtime messaging protecting against extension context invalidation & lastError leaks
+ *  - Automatic observer disconnection when navigating away from watch pages
  */
 
 (function () {
   "use strict";
 
-  /* â”€â”€ Default settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  const DEFAULT_PIP_SHORTCUT = {
+    key: "8",
+    code: "Digit8",
+    altKey: false,
+    ctrlKey: true,
+    shiftKey: true,
+    metaKey: false,
+    display: "Ctrl+Shift+8",
+  };
+
   const DEFAULTS = {
     enabled: true,
     stickyPlayer: false,
     hideScrollbars: true,
+    hideShorts: true,
+    autoPip: false,
+    fullAmbient: false,
+    pipShortcut: DEFAULT_PIP_SHORTCUT,
   };
 
-  /* â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   let currentSettings = { ...DEFAULTS };
-  let continuationObserver = null; // IntersectionObserver for infinite scroll
-  let mutationObs = null;          // MutationObserver to find continuation items
+  let continuationObserver = null;
+  let mutationObs = null;
+  let mutationThrottleTimer = null;
+  let returnDebounceTimer = null;
+  let lastSentinelTriggerTime = 0;
+  let lastShortcutHandledTime = 0;
+  let currentObservedVideo = null;
 
-  /* â”€â”€ Apply classes to <html> â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Safe Messaging (Consumes lastError to prevent uncaught logs) ─── */
+
+  function safeSendMessage(msg) {
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage(msg, () => {
+          if (chrome.runtime.lastError) {}
+        });
+      }
+    } catch (_) {}
+  }
+
+  function isWatchPage() {
+    return window.location.pathname.startsWith("/watch");
+  }
+
+  /* ── State Synchronization for MAIN World Script ─────────────────── */
+
+  function syncAutoPipState() {
+    try {
+      const active = currentSettings.enabled && currentSettings.autoPip;
+      document.documentElement.setAttribute(
+        "data-yt-split-scroll-auto-pip",
+        active ? "true" : "false"
+      );
+    } catch (_) {}
+  }
+
+  function syncAmbientState() {
+    try {
+      const active = currentSettings.enabled && currentSettings.fullAmbient;
+      document.documentElement.setAttribute(
+        "data-yt-split-scroll-full-ambient",
+        active ? "true" : "false"
+      );
+    } catch (_) {}
+  }
+
+  /* ── CSS Class Toggling ───────────────────────────────────────────── */
+
   function applyClasses() {
     const root = document.documentElement;
     root.classList.toggle("yt-split-scroll", currentSettings.enabled);
@@ -46,160 +94,457 @@
       "yt-split-scroll-hide-scrollbars",
       currentSettings.enabled && currentSettings.hideScrollbars
     );
+    root.classList.toggle(
+      "yt-split-scroll-hide-shorts",
+      currentSettings.enabled && currentSettings.hideShorts
+    );
+    root.classList.toggle(
+      "yt-split-scroll-auto-pip",
+      currentSettings.enabled && currentSettings.autoPip
+    );
+    root.classList.toggle(
+      "yt-split-scroll-full-ambient",
+      currentSettings.enabled && currentSettings.fullAmbient
+    );
+
+    syncAutoPipState();
+    syncAmbientState();
   }
 
-  /* â”€â”€ Infinite-scroll fix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Infinite Scroll Sentinel Watcher (Throttled for low-spec CPUs) ─ */
 
-  /**
-   * YouTube lazy-loads more suggestions when `ytd-continuation-item-renderer`
-   * enters the viewport.  Since we turned #secondary into its own scroll
-   * container, the element never enters the *document* viewport.
-   *
-   * Fix: use an IntersectionObserver rooted at #secondary.  When the sentinel
-   * becomes visible inside that container we scroll it into the document
-   * viewport momentarily (via scrollIntoView with { block: 'nearest' } on
-   * a zero-height wrapper) which lets YouTube's own observer fire.
-   *
-   * As a fallback, we also directly click any <button> inside it, which
-   * YouTube sometimes renders as a manual "Show more" trigger.
-   */
   function triggerLoad(entry) {
     if (!entry.isIntersecting) return;
 
-    const el = entry.target;
+    const now = Date.now();
+    if (now - lastSentinelTriggerTime < 350) return; // Max 1 trigger per 350ms
+    lastSentinelTriggerTime = now;
 
-    // Strategy 1: Click any button YouTube placed inside the renderer
+    const el = entry.target;
     const btn = el.querySelector("button, tp-yt-paper-button, yt-button-renderer button");
     if (btn) {
       btn.click();
       return;
     }
 
-    // Strategy 2: Briefly make the element visible to YouTube's own
-    // viewport-based observer by dispatching a scroll event on the
-    // window.  This nudges YouTube's internal IntersectionObserver.
-    window.dispatchEvent(new Event("scroll"));
+    try {
+      window.dispatchEvent(new Event("scroll"));
+    } catch (_) {}
   }
 
   function setupContinuationObserver() {
-    // Disconnect any previous observer
     if (continuationObserver) {
       continuationObserver.disconnect();
       continuationObserver = null;
     }
 
-    if (!currentSettings.enabled) return;
+    if (!currentSettings.enabled || !isWatchPage()) return;
 
     const secondary = document.querySelector(
       "ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary"
     );
     if (!secondary) return;
 
-    // Observe inside #secondary (our custom scroll container)
-    continuationObserver = new IntersectionObserver(
-      (entries) => entries.forEach(triggerLoad),
-      {
-        root: secondary,
-        rootMargin: "0px 0px 400px 0px", // trigger 400px before the bottom
-        threshold: 0,
-      }
-    );
+    try {
+      continuationObserver = new IntersectionObserver(
+        (entries) => entries.forEach(triggerLoad),
+        {
+          root: secondary,
+          rootMargin: "0px 0px 400px 0px",
+          threshold: 0,
+        }
+      );
 
-    // Observe all current continuation items
-    const sentinels = secondary.querySelectorAll(
-      "ytd-continuation-item-renderer"
-    );
-    sentinels.forEach((el) => continuationObserver.observe(el));
+      const sentinels = secondary.querySelectorAll("ytd-continuation-item-renderer");
+      sentinels.forEach((el) => continuationObserver.observe(el));
+    } catch (_) {}
   }
 
-  /**
-   * MutationObserver: watch #secondary for dynamically-added
-   * continuation-item-renderer elements (they are replaced after each batch).
-   */
+  /* ── Mutation Watcher (Debounced via requestAnimationFrame) ───────── */
+
   function setupMutationWatcher() {
     if (mutationObs) {
       mutationObs.disconnect();
       mutationObs = null;
     }
 
-    if (!currentSettings.enabled) return;
+    if (!currentSettings.enabled || !isWatchPage()) return;
 
-    const secondary = document.querySelector("#secondary");
+    const secondary = document.querySelector("#secondary-inner") || document.querySelector("#secondary");
     if (!secondary) return;
 
-    mutationObs = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        for (const node of m.addedNodes) {
-          if (!(node instanceof HTMLElement)) continue;
+    try {
+      mutationObs = new MutationObserver(() => {
+        if (mutationThrottleTimer) return;
+        mutationThrottleTimer = requestAnimationFrame(() => {
+          mutationThrottleTimer = null;
+          if (!continuationObserver || !secondary) return;
+          try {
+            const sentinels = secondary.querySelectorAll("ytd-continuation-item-renderer");
+            sentinels.forEach((el) => continuationObserver.observe(el));
+          } catch (_) {}
+        });
+      });
 
-          // Check if the added node IS a continuation-item, or contains one
-          const items =
-            node.matches && node.matches("ytd-continuation-item-renderer")
-              ? [node]
-              : node.querySelectorAll
-                ? Array.from(
-                    node.querySelectorAll("ytd-continuation-item-renderer")
-                  )
-                : [];
-
-          items.forEach((el) => {
-            if (continuationObserver) continuationObserver.observe(el);
-          });
-        }
-      }
-    });
-
-    mutationObs.observe(secondary, { childList: true, subtree: true });
+      mutationObs.observe(secondary, { childList: true, subtree: true });
+    } catch (_) {}
   }
 
-  /* â”€â”€ Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Video Detection & Attribute Management ──────────────────────── */
+
+  function findVideoElement() {
+    const mainVideo =
+      document.querySelector("#movie_player video") ||
+      document.querySelector("ytd-watch-flexy video.html5-main-video") ||
+      document.querySelector("video.html5-main-video");
+    if (mainVideo) return mainVideo;
+
+    const videos = Array.from(document.querySelectorAll("video"));
+    return videos.find((v) => v.offsetWidth > 0 && v.offsetHeight > 0) || videos[0] || null;
+  }
+
+  function unlockVideoPip(video) {
+    if (!video) return;
+    try {
+      video.removeAttribute("disablepictureinpicture");
+      video.disablePictureInPicture = false;
+
+      if (currentSettings.enabled && currentSettings.autoPip) {
+        video.autoPictureInPicture = true;
+        video.setAttribute("autopictureinpicture", "true");
+      } else {
+        video.autoPictureInPicture = false;
+        video.removeAttribute("autopictureinpicture");
+      }
+
+      if (!video._splitScrollTracked) {
+        video._splitScrollTracked = true;
+        video.addEventListener("enterpictureinpicture", () => {
+          safeSendMessage({ action: "pip-started" });
+        });
+        video.addEventListener("leavepictureinpicture", () => {
+          safeSendMessage({ action: "pip-stopped" });
+        });
+      }
+    } catch (_) {}
+  }
+
+  // Observer that strips disablepictureinpicture if YouTube dynamically re-applies it
+  const pipAttributeObserver = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type === "attributes" && m.attributeName === "disablepictureinpicture") {
+        if (m.target instanceof HTMLVideoElement && m.target.hasAttribute("disablepictureinpicture")) {
+          m.target.removeAttribute("disablepictureinpicture");
+          m.target.disablePictureInPicture = false;
+        }
+      }
+    }
+  });
+
+  function setupAutoPip() {
+    if (!isWatchPage()) return;
+    syncAutoPipState();
+
+    const video = findVideoElement();
+    if (!video) return;
+
+    unlockVideoPip(video);
+
+    if (currentObservedVideo !== video) {
+      currentObservedVideo = video;
+      try {
+        pipAttributeObserver.observe(video, {
+          attributes: true,
+          attributeFilter: ["disablepictureinpicture"],
+        });
+      } catch (_) {}
+    }
+  }
+
+  /* ── Debounced Auto-Exit PiP on Window / Tab Return ───────────────── */
+
+  function handleTabReturn() {
+    if (!currentSettings.enabled || !currentSettings.autoPip) return;
+
+    if (returnDebounceTimer) {
+      clearTimeout(returnDebounceTimer);
+    }
+
+    // Delay 250ms so Windows DWM unminimize animation finishes and DirectX surface is composited
+    returnDebounceTimer = setTimeout(async () => {
+      returnDebounceTimer = null;
+      if (document.visibilityState !== "visible") return;
+
+      if (document.pictureInPictureElement) {
+        try {
+          await document.exitPictureInPicture();
+        } catch (_) {}
+      }
+    }, 250);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      handleTabReturn();
+    } else {
+      if (returnDebounceTimer) {
+        clearTimeout(returnDebounceTimer);
+        returnDebounceTimer = null;
+      }
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    if (document.visibilityState === "visible") {
+      handleTabReturn();
+    }
+  });
+
+  /* ── Picture-in-Picture Toggle ─────────────────────────────────────── */
+
+  function togglePictureInPicture() {
+    lastShortcutHandledTime = Date.now();
+    if (returnDebounceTimer) {
+      clearTimeout(returnDebounceTimer);
+      returnDebounceTimer = null;
+    }
+
+    try {
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {});
+        return;
+      }
+
+      const video = findVideoElement();
+      if (!video) return;
+
+      unlockVideoPip(video);
+
+      video.requestPictureInPicture().catch((err) => {
+        // Silently catch gesture checks if invoked without user activation
+        if (err.name !== "NotAllowedError" && err.name !== "InvalidStateError") {
+          console.warn("[Split Scroll] PiP toggle:", err.name, err.message);
+        }
+      });
+    } catch (_) {}
+  }
+
+  document.addEventListener(
+    "enterpictureinpicture",
+    () => {
+      safeSendMessage({ action: "pip-started" });
+    },
+    true
+  );
+
+  document.addEventListener(
+    "leavepictureinpicture",
+    () => {
+      safeSendMessage({ action: "pip-stopped" });
+    },
+    true
+  );
+
+  /* ── Native Command & Message Dispatcher ─────────────────────────── */
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message) return;
+
+    if (message.action === "exit-pip" || message.action === "exit-pip-if-active") {
+      if (returnDebounceTimer) {
+        clearTimeout(returnDebounceTimer);
+        returnDebounceTimer = null;
+      }
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {});
+        sendResponse({ exited: true, wasActive: true, success: true });
+      } else {
+        sendResponse({ exited: false, wasActive: false, success: true });
+      }
+      return;
+    }
+
+    if (message.action === "window-focused") {
+      handleTabReturn();
+      sendResponse({ received: true });
+      return;
+    }
+
+    if (message.action === "window-defocused") {
+      if (currentSettings.enabled && currentSettings.autoPip) {
+        const video = findVideoElement();
+        if (video && !video.paused && !video.ended && !document.pictureInPictureElement) {
+          try {
+            unlockVideoPip(video);
+            video.requestPictureInPicture().catch(() => {});
+          } catch (_) {}
+        }
+      }
+      sendResponse({ received: true });
+      return;
+    }
+
+    if (message.action === "toggle-pip") {
+      // If we just handled this shortcut from in-page keydown, avoid race condition collision
+      if (Date.now() - lastShortcutHandledTime < 800) {
+        sendResponse({ success: true, ignoredDuplicate: true });
+        return;
+      }
+      togglePictureInPicture();
+      sendResponse({ success: true });
+    }
+  });
+
+  /* ── In-Page Keyboard Shortcut Handler ───────────────────────────── */
+
+  function isEditableElement(element) {
+    if (!element) return false;
+    if (element.isContentEditable) return true;
+    const tag = element.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  }
+
+  function handleKeyDown(e) {
+    if (!currentSettings.enabled) return;
+
+    const activeEl = document.activeElement;
+    if (isEditableElement(e.target) || isEditableElement(activeEl)) {
+      return;
+    }
+
+    const key = e.key ? e.key.toLowerCase() : "";
+    const code = e.code ? e.code.toLowerCase() : "";
+
+    // 1. Built-in global standard shortcut: Ctrl+Shift+8
+    const isCtrlShift8 = e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && (key === "8" || code === "digit8");
+
+    // 2. Popular alternate shortcuts: Alt+P, Alt+Shift+X, Alt+X
+    const isAltP = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && (key === "p" || code === "keyp");
+    const isAltShiftX = e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && (key === "x" || code === "keyx");
+    const isAltX = e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && (key === "x" || code === "keyx");
+
+    // 3. User customized shortcut (synced from Chrome commands or custom selection)
+    const custom = currentSettings.pipShortcut;
+    let customMatches = false;
+    if (custom) {
+      const matchKey = custom.key && key === custom.key.toLowerCase();
+      const matchCode = custom.code && code === custom.code.toLowerCase();
+      const matchAlt = !!e.altKey === !!custom.altKey;
+      const matchCtrl = !!e.ctrlKey === !!custom.ctrlKey;
+      const matchShift = !!e.shiftKey === !!custom.shiftKey;
+      const matchMeta = !!e.metaKey === !!custom.metaKey;
+      customMatches = (matchKey || matchCode) && matchAlt && matchCtrl && matchShift && matchMeta;
+    }
+
+    if (isCtrlShift8 || isAltP || isAltShiftX || isAltX || customMatches) {
+      e.preventDefault();
+      e.stopPropagation();
+      togglePictureInPicture();
+    }
+  }
+
+  window.addEventListener("keydown", handleKeyDown, true);
+
+  /* ── Cleanup on Navigation Away ───────────────────────────────────── */
+
+  function cleanupWatchPage() {
+    if (continuationObserver) {
+      continuationObserver.disconnect();
+      continuationObserver = null;
+    }
+    if (mutationObs) {
+      mutationObs.disconnect();
+      mutationObs = null;
+    }
+    if (pipAttributeObserver) {
+      pipAttributeObserver.disconnect();
+    }
+    if (mutationThrottleTimer) {
+      cancelAnimationFrame(mutationThrottleTimer);
+      mutationThrottleTimer = null;
+    }
+    if (returnDebounceTimer) {
+      clearTimeout(returnDebounceTimer);
+      returnDebounceTimer = null;
+    }
+    currentObservedVideo = null;
+  }
+
+  document.addEventListener("yt-navigate-start", () => {
+    if (!isWatchPage()) {
+      cleanupWatchPage();
+    }
+  });
+
+  /* ── Initialization ───────────────────────────────────────────────── */
 
   function init() {
     applyClasses();
-    // Small delay so YouTube finishes rendering the watch page DOM
+
+    if (!isWatchPage()) {
+      cleanupWatchPage();
+      return;
+    }
+
+    setupAutoPip();
+
     setTimeout(() => {
-      setupContinuationObserver();
-      setupMutationWatcher();
-    }, 800);
+      if (isWatchPage()) {
+        setupContinuationObserver();
+        setupMutationWatcher();
+        setupAutoPip();
+      }
+    }, 600);
   }
 
-  /* â”€â”€ Load settings and start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  // Load initial settings
+  try {
+    chrome.storage.local
+      .get(DEFAULTS)
+      .then((result) => {
+        currentSettings = { ...DEFAULTS, ...result };
+        init();
+      })
+      .catch(() => {
+        init();
+      });
+  } catch (_) {
+    init();
+  }
 
-  chrome.storage.local
-    .get(DEFAULTS)
-    .then((result) => {
-      currentSettings = { ...DEFAULTS, ...result };
-      init();
-    })
-    .catch(() => {
-      // If storage fails (e.g. in private browsing), use defaults
-      init();
-    });
-
-  /* â”€â”€ React to YouTube SPA navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-  // YouTube fires this custom event after every client-side navigation.
   document.addEventListener("yt-navigate-finish", () => {
     init();
   });
 
-  /* â”€â”€ React to setting changes from the popup (live update) â”€â”€â”€â”€â”€ */
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
+  /* ── Real-Time Storage Listener ──────────────────────────────────── */
 
-    if (changes.enabled !== undefined) {
-      currentSettings.enabled =
-        changes.enabled.newValue ?? DEFAULTS.enabled;
-    }
-    if (changes.stickyPlayer !== undefined) {
-      currentSettings.stickyPlayer =
-        changes.stickyPlayer.newValue ?? DEFAULTS.stickyPlayer;
-    }
-    if (changes.hideScrollbars !== undefined) {
-      currentSettings.hideScrollbars =
-        changes.hideScrollbars.newValue ?? DEFAULTS.hideScrollbars;
-    }
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
 
-    init();
-  });
+      if (changes.enabled !== undefined) {
+        currentSettings.enabled = changes.enabled.newValue ?? DEFAULTS.enabled;
+      }
+      if (changes.stickyPlayer !== undefined) {
+        currentSettings.stickyPlayer = changes.stickyPlayer.newValue ?? DEFAULTS.stickyPlayer;
+      }
+      if (changes.hideScrollbars !== undefined) {
+        currentSettings.hideScrollbars = changes.hideScrollbars.newValue ?? DEFAULTS.hideScrollbars;
+      }
+      if (changes.hideShorts !== undefined) {
+        currentSettings.hideShorts = changes.hideShorts.newValue ?? DEFAULTS.hideShorts;
+      }
+      if (changes.autoPip !== undefined) {
+        currentSettings.autoPip = changes.autoPip.newValue ?? DEFAULTS.autoPip;
+      }
+      if (changes.fullAmbient !== undefined) {
+        currentSettings.fullAmbient = changes.fullAmbient.newValue ?? DEFAULTS.fullAmbient;
+      }
+      if (changes.pipShortcut !== undefined) {
+        currentSettings.pipShortcut = changes.pipShortcut.newValue ?? DEFAULT_PIP_SHORTCUT;
+      }
+
+      init();
+    });
+  } catch (_) {}
 })();
-

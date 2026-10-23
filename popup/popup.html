@@ -5,27 +5,86 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>Split Scroll</h1>
+  <div class="header">
+    <div class="logo">
+      <span class="dot"></span>
+      <span class="title">TubeDeck</span>
+    </div>
+    <span class="version">v0.4.0</span>
+  </div>
 
-  <label class="toggle-row">
-    <span class="label-text">Split scrolling</span>
-    <input type="checkbox" id="enabled" checked>
-    <span class="slider"></span>
-  </label>
+  <div class="list">
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Split scrolling</span>
+        <span class="sublabel">Dual independent columns</span>
+      </div>
+      <input type="checkbox" id="enabled" checked>
+      <span class="switch"></span>
+    </label>
 
-  <label class="toggle-row">
-    <span class="label-text">Sticky player</span>
-    <input type="checkbox" id="stickyPlayer">
-    <span class="slider"></span>
-  </label>
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Sticky player</span>
+        <span class="sublabel">Pin video while browsing</span>
+      </div>
+      <input type="checkbox" id="stickyPlayer">
+      <span class="switch"></span>
+    </label>
 
-  <label class="toggle-row">
-    <span class="label-text">Hide scrollbars</span>
-    <input type="checkbox" id="hideScrollbars" checked>
-    <span class="slider"></span>
-  </label>
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Hide Shorts</span>
+        <span class="sublabel">Clean feeds & suggestions</span>
+      </div>
+      <input type="checkbox" id="hideShorts" checked>
+      <span class="switch"></span>
+    </label>
 
-  <p class="hint">Changes apply instantly to open YouTube tabs.</p>
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Hide scrollbars</span>
+        <span class="sublabel">Clean invisible scrolling</span>
+      </div>
+      <input type="checkbox" id="hideScrollbars" checked>
+      <span class="switch"></span>
+    </label>
+
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Full ambient glow</span>
+        <span class="sublabel">High-intensity room immersion</span>
+      </div>
+      <input type="checkbox" id="fullAmbient">
+      <span class="switch"></span>
+    </label>
+
+    <label class="row">
+      <div class="item-info">
+        <span class="label">Auto PiP</span>
+        <span class="sublabel">Float video on tab / window switch</span>
+      </div>
+      <input type="checkbox" id="autoPip">
+      <span class="switch"></span>
+    </label>
+
+    <div id="autoPipFlagRow" class="sub-helper-row">
+      <span class="sub-helper-text">Alt+Tab / Window PiP:</span>
+      <a href="#" id="openFlagLink" class="flag-link" title="Open Chrome's native flag for Alt+Tab Auto-PiP">Enable Flag ↗</a>
+    </div>
+
+    <div id="statusBanner" class="status-banner"></div>
+  </div>
+
+  <div class="footer">
+    <div class="shortcut-tip">
+      <span class="tip-label">PiP:</span>
+      <kbd>Ctrl+Shift+8</kbd>
+      <span class="tip-sep">or</span>
+      <kbd>Alt+P</kbd>
+    </div>
+    <a href="#" id="openShortcutsLink" class="shortcuts-link" title="Customize global shortcuts in Chrome">Customize in Chrome ↗</a>
+  </div>
 
   <script src="popup.js"></script>
 </body>

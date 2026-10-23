@@ -1,4 +1,4 @@
-/* Popup styles — dark theme to match YouTube */
+/* TubeDeck – Refined Minimalist Popup */
 
 * {
   box-sizing: border-box;
@@ -6,78 +6,238 @@
   padding: 0;
 }
 
-body {
-  width: 260px;
-  padding: 16px;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  background: #1e1e1e;
-  color: #e8e8e8;
+html, body {
+  width: 246px;
+  background: #0f0f11;
+  color: #ededed;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  user-select: none;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 14px;
-  color: #fff;
-}
+/* ── Header ────────────────────────────────────────────────────────── */
 
-/* ── Toggle row ─────────────────────────────────────────────── */
-
-.toggle-row {
+.header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  cursor: pointer;
-  user-select: none;
+  padding: 10px 14px 8px 14px;
+  border-bottom: 1px solid #1c1c1f;
+  background: #141417;
 }
 
-.label-text {
-  font-size: 13px;
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
-/* Hide native checkbox */
-.toggle-row input[type="checkbox"] {
-  display: none;
-}
-
-/* Slider track */
-.slider {
-  position: relative;
-  width: 40px;
-  height: 22px;
-  background: #555;
-  border-radius: 11px;
-  transition: background 0.2s;
+.dot {
+  width: 7.5px;
+  height: 7.5px;
+  border-radius: 50%;
+  background: #00d2ff;
+  box-shadow: 0 0 7px rgba(0, 210, 255, 0.7);
   flex-shrink: 0;
 }
 
-/* Slider knob */
-.slider::after {
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.version {
+  font-size: 10px;
+  font-weight: 500;
+  color: #616168;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ── Menu List ─────────────────────────────────────────────────────── */
+
+.list {
+  padding: 6px 7px 6px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.row:hover {
+  background: #18181c;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+}
+
+.label {
+  font-size: 12px;
+  color: #e4e4e7;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.sublabel {
+  font-size: 9.5px;
+  color: #71717a;
+  letter-spacing: -0.01em;
+}
+
+/* ── Micro Switch ──────────────────────────────────────────────────── */
+
+.row input[type="checkbox"] {
+  display: none;
+}
+
+.switch {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  background: #2b2b30;
+  border-radius: 9px;
+  flex-shrink: 0;
+  transition: background 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s ease;
+}
+
+.switch::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 16px;
-  height: 16px;
-  background: #fff;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  background: #c7c7cc;
   border-radius: 50%;
-  transition: transform 0.2s;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.15s ease;
 }
 
-/* Checked state */
-.toggle-row input[type="checkbox"]:checked + .slider {
-  background: #3ea6ff; /* YouTube blue */
+.row input[type="checkbox"]:checked + .switch {
+  background: #00b4d8;
+  box-shadow: 0 0 9px rgba(0, 180, 216, 0.35);
 }
 
-.toggle-row input[type="checkbox"]:checked + .slider::after {
-  transform: translateX(18px);
+.row input[type="checkbox"]:checked + .switch::after {
+  transform: translateX(13px);
+  background: #ffffff;
 }
 
-/* Hint text */
-.hint {
-  margin-top: 14px;
-  font-size: 11px;
-  color: #888;
-  text-align: center;
+/* ── Auto-PiP Flag Helper ─────────────────────────────────────────── */
+
+.sub-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1px 8px 5px 12px;
+  margin-top: -2px;
+  margin-bottom: 2px;
 }
+
+.sub-helper-text {
+  font-size: 10px;
+  color: #71717a;
+}
+
+.flag-link {
+  font-size: 10px;
+  color: #00b4d8;
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+
+.flag-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+/* ── Status Banner ─────────────────────────────────────────────────── */
+
+.status-banner {
+  display: none;
+  font-size: 9.5px;
+  color: #a1a1aa;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #18181c;
+  margin: 3px 6px;
+  line-height: 1.3;
+}
+
+.status-banner.visible {
+  display: block;
+}
+
+.status-banner.info {
+  color: #38bdf8;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────── */
+
+.footer {
+  padding: 7px 12px 8px 12px;
+  border-top: 1px solid #1a1a1d;
+  background: #0b0b0d;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.shortcut-tip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #71717a;
+}
+
+.tip-label {
+  font-weight: 500;
+  color: #52525b;
+}
+
+.tip-sep {
+  color: #3f3f46;
+  font-size: 9px;
+}
+
+kbd {
+  background: #18181b;
+  color: #a1a1aa;
+  border: 1px solid #27272a;
+  border-radius: 3px;
+  padding: 1px 4.5px;
+  font-size: 9.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.shortcuts-link {
+  font-size: 10px;
+  color: #52525b;
+  text-decoration: none;
+  transition: color 0.15s ease;
+  cursor: pointer;
+}
+
+.shortcuts-link:hover {
+  color: #00b4d8;
+}
+

@@ -1,17 +1,23 @@
-# YouTube Split Scroll
+# TubeDeck for YouTube
 
-A Firefox extension that makes YouTube's left column (video player, title, comments) and right column (suggested videos) scroll independently — so browsing suggestions never pushes the video off screen.
+A power-user Chrome & Firefox extension that elevates your YouTube experience with dual-column independent scrolling, sticky video pinning, YouTube Shorts suppression, invisible scrollbars, and seamless Auto Picture-in-Picture.
 
-![Firefox](https://img.shields.io/badge/Firefox-MV3-orange)
+![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)
 
 ---
 
 ## Features
 
 - **Independent column scrolling** — the primary (left) and secondary (right) columns each get their own scrollbar on the YouTube watch page.
+- **Hide Shorts everywhere** (optional, enabled by default) — eliminates YouTube Shorts shelves, feed items, watch recommendations, and navigation drawer links for a distraction-free experience.
+- **Hidden scrollbars** (optional, enabled by default) — keep column scrolling completely invisible for a clean, minimalist UI without visual distraction.
+- **Picture-in-Picture (PiP) shortcut** — toggle floating PiP mode with an ergonomic shortcut (`Ctrl+Shift+8` global default that works even when the floating PiP window is focused; also supports `Alt+P`, `Alt+Shift+X`, and `Alt+X`).
+- **Auto PiP** (optional, disabled by default) — automatically enters PiP mode via Chrome's native MediaSession API when switching tabs. For window switching, Alt+Tab, or minimizing, enable Chrome's flag at `chrome://flags/#auto-picture-in-picture-for-video-playback` via the 1-click link in the popup. In-page playback smoothly restores when returning to the window.
+- **Ambient lighting blend & Full Ambient Glow** (optional, high-intensity mode) — smoothly bleeds YouTube's ambient glow across the page, with an optional full-viewport Ambilight mode that casts high-intensity video-reactive ambient lighting across the entire screen with frosted glassmorphism cards.
+- **Ultra-compact minimalist popup** — redesigned with instant 0ms opening performance, sleek micro-switches, and zero visual clutter.
 - **Theater & fullscreen safe** — the split scroll is automatically disabled in theater mode and fullscreen.
 - **Responsive** — narrow viewports (< 1016 px) keep YouTube's default single-column layout.
-- **Toolbar toggle** — click the extension icon to turn split scrolling on/off instantly, no reload needed.
+- **Toolbar toggle** — click the extension icon to configure features instantly with real-time sync across all open YouTube tabs.
 - **Sticky player** (optional) — pin the video player to the top of the left column while scrolling comments.
 - **Infinite scroll preserved** — a content script ensures YouTube's "load more suggestions" still triggers when you scroll inside the sidebar.
 
